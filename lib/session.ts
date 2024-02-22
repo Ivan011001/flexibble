@@ -4,7 +4,8 @@ import { AdapterUser } from "next-auth/adapters";
 import GoogleProvider from "next-auth/providers/google";
 import jsonwebtoken from "jsonwebtoken";
 import { JWT } from "next-auth/jwt";
-import { SessionInterface } from "@/common.types";
+import { SessionInterface, UserProfile } from "@/common.types";
+import { createUser, getUser } from "./actions";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -14,11 +15,19 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
 
-  // jwt: {
-  //   encode: ({ secret, token }) => {},
+  jwt: {
+    encode: ({ secret, token }) => {
+      const encodedToken = jsonwebtoken.sign(token!, secret);
 
-  //   decode: ({ secret, token }) => {},
-  // },
+      return encodedToken;
+    },
+
+    decode: async ({ secret, token }) => {
+      const decodedToken = jsonwebtoken.verify(token!, secret) as JWT;
+
+      return decodedToken;
+    },
+  },
 
   theme: {
     colorScheme: "light",
@@ -27,16 +36,42 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async session({ session }) {
-      return session;
+      const email = session?.user?.email as string;
+      try {
+        const data = (await getUser(email)) as { user?: UserProfile };
+        const newSession = {
+          ...session,
+          user: {
+            ...session?.user,
+            ...data?.user,
+          },
+        };
+        return newSession;
+      } catch (error: any) {
+        return session;
+      }
     },
 
-    async signIn({ user }: { user: AdapterUser | User }) {
+    async signIn({ user }: { user?: AdapterUser | User }) {
       try {
+        const userExists = (await getUser(user?.email as string)) as {
+          user?: UserProfile;
+        };
+
+        if (!userExists) {
+          await createUser({
+            name: user?.name as string,
+            email: user?.email as string,
+            avatarUrl: user?.image as string,
+          });
+        }
+
         return true;
       } catch (error: any) {
-        console.log(error);
         return false;
       }
+
+      return true;
     },
   },
 };

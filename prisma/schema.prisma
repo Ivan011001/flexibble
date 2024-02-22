@@ -21,7 +21,7 @@ model User {
   avatarUrl   String
   githubUrl   String?
   linkedInUrl String?
-  project     Project[]
+  projects    Project[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
